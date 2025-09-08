@@ -1,0 +1,42 @@
+pipeline {
+    agent any
+
+    environment {
+        EC2_USER = "ec2-user"           // default user for Amazon Linux
+        EC2_HOST = "13.203.210.159"     // your EC2 public IP
+        CREDENTIALS_ID = "ec2-ssh-key"  // Jenkins credential ID for your PEM key
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/your-username/your-repo.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'echo "Building project..."'
+                // Example build step: sh 'mvn clean package' or npm install
+            }
+        }
+
+        stage('Deploy to EC2') {
+            steps {
+                sshagent (credentials: ["${CREDENTIALS_ID}"]) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
+                            cd /home/ec2-user/app || mkdir /home/ec2-user/app;
+                            exit
+                        '
+                        scp -o StrictHostKeyChecking=no -r * ${EC2_USER}@${EC2_HOST}:/home/ec2-user/app/
+                        ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
+                            cd /home/ec2-user/app;
+                            echo "App deployed successfully!";
+                        '
+                    """
+                }
+            }
+        }
+    }
+}
