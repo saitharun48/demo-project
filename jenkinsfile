@@ -2,9 +2,9 @@ pipeline {
     agent any
 
     environment {
-        EC2_USER = "ec2-user"           // default user for Amazon Linux
-        EC2_HOST = "13.203.210.159"     // your EC2 public IP
-        CREDENTIALS_ID = "ec2-ssh-key"  // Jenkins credential ID for your PEM key
+        EC2_USER = "ec2-user"               // default user for Amazon Linux
+        EC2_HOST = "13.203.210.159"         // your EC2 public IP
+        CREDENTIALS_ID = "i-053e30dc642f3a01f"  // your Jenkins SSH credential ID
     }
 
     stages {
@@ -17,24 +17,33 @@ pipeline {
         stage('Build') {
             steps {
                 sh 'echo "Building project..."'
-                // Example build step: sh 'mvn clean package' or npm install
+                // Example: sh 'mvn clean package' or 'npm install'
+            }
+        }
+
+        stage('Test SSH Connection') {
+            steps {
+                sshagent([CREDENTIALS_ID]) {
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "echo SSH connection successful!"
+                    '''
+                }
             }
         }
 
         stage('Deploy to EC2') {
             steps {
-                sshagent (credentials: ["${CREDENTIALS_ID}"]) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
-                            cd /home/ec2-user/app || mkdir /home/ec2-user/app;
-                            exit
-                        '
+                sshagent([CREDENTIALS_ID]) {
+                    sh '''
+                        # Create directory on EC2
+                        ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "mkdir -p /home/ec2-user/app"
+
+                        # Copy files to EC2
                         scp -o StrictHostKeyChecking=no -r * ${EC2_USER}@${EC2_HOST}:/home/ec2-user/app/
-                        ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
-                            cd /home/ec2-user/app;
-                            echo "App deployed successfully!";
-                        '
-                    """
+
+                        # Confirm deployment
+                        ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "cd /home/ec2-user/app; echo 'App deployed successfully!'"
+                    '''
                 }
             }
         }
